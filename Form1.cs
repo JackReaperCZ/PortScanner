@@ -11,6 +11,9 @@ using PortScanner.Models;
 using PortScanner.Services;
 using PortScanner.Utils;
 
+/// <summary>
+/// Hlavní formulář aplikace: obsahuje GUI, filtry, exporty a bezpečné batchování výsledků.
+/// </summary>
 public partial class Form1 : Form
 {
     private readonly object listViewLock = new object();
@@ -28,6 +31,9 @@ public partial class Form1 : Form
     private int currentSortColumn = 0;
     private SortOrder currentSortOrder = SortOrder.None;
 
+    /// <summary>
+    /// Inicializuje komponenty a časovač pro dávkové UI aktualizace.
+    /// </summary>
     public Form1()
     {
         InitializeComponent();
@@ -36,6 +42,9 @@ public partial class Form1 : Form
         uiTimer.Tick += UiTimer_Tick;
     }
 
+    /// <summary>
+    /// Spustí sken dle aktuální konfigurace GUI.
+    /// </summary>
     private void btnStart_Click(object? sender, EventArgs e)
     {
         if (scanner != null)
@@ -48,11 +57,17 @@ public partial class Form1 : Form
         uiTimer!.Start();
     }
 
+    /// <summary>
+    /// Zastaví aktuální běžící sken.
+    /// </summary>
     private void btnStop_Click(object? sender, EventArgs e)
     {
         scanner?.Stop();
     }
 
+    /// <summary>
+    /// Vymaže tabulku a interní dataset výsledků.
+    /// </summary>
     private void btnClearOutput_Click(object? sender, EventArgs e)
     {
         lock (listViewLock)
@@ -67,11 +82,17 @@ public partial class Form1 : Form
         }
     }
 
+    /// <summary>
+    /// Vymaže logovací konzoli.
+    /// </summary>
     private void btnClearLog_Click(object? sender, EventArgs e)
     {
         rtbLog.Clear();
     }
 
+    /// <summary>
+    /// Exportuje aktuálně filtrované výsledky do CSV.
+    /// </summary>
     private void btnExportCsv_Click(object? sender, EventArgs e)
     {
         if (filteredResults.Count == 0)
@@ -97,6 +118,9 @@ public partial class Form1 : Form
         }
     }
 
+    /// <summary>
+    /// Exportuje aktuálně filtrované výsledky do JSON.
+    /// </summary>
     private void btnExportJson_Click(object? sender, EventArgs e)
     {
         if (filteredResults.Count == 0)
@@ -124,6 +148,9 @@ public partial class Form1 : Form
         }
     }
 
+    /// <summary>
+    /// Exportuje aktuálně filtrované výsledky do XML.
+    /// </summary>
     private void btnExportXml_Click(object? sender, EventArgs e)
     {
         if (filteredResults.Count == 0)
@@ -207,6 +234,9 @@ public partial class Form1 : Form
         return false;
     }
 
+    /// <summary>
+    /// Řazení – nastaví sloupec a směr řazení a obnoví virtuální list.
+    /// </summary>
     private void lvResults_ColumnClick(object? sender, ColumnClickEventArgs e)
     {
         if (currentSortColumn == e.Column)
@@ -226,11 +256,17 @@ public partial class Form1 : Form
         }
     }
 
+    /// <summary>
+    /// Aplikuje filtry z ovládacích prvků.
+    /// </summary>
     private void btnApplyFilter_Click(object? sender, EventArgs e)
     {
         ApplyFilterFromControls();
     }
 
+    /// <summary>
+    /// Resetuje filtry na výchozí hodnoty a přestaví zobrazení.
+    /// </summary>
     private void btnClearFilter_Click(object? sender, EventArgs e)
     {
         currentIpFilter = string.Empty;
@@ -246,6 +282,9 @@ public partial class Form1 : Form
         RebuildView();
     }
 
+    /// <summary>
+    /// Načte hodnoty filtrů z GUI do interních proměnných.
+    /// </summary>
     private void ApplyFilterFromControls()
     {
         currentIpFilter = txtFilterIp.Text.Trim();
@@ -256,6 +295,9 @@ public partial class Form1 : Form
         RebuildView();
     }
 
+    /// <summary>
+    /// Přestaví virtuální zobrazení dle aktuálních filtrů.
+    /// </summary>
     private void RebuildView()
     {
         if (InvokeRequired)
@@ -275,6 +317,9 @@ public partial class Form1 : Form
         SortFilteredResults();
     }
 
+    /// <summary>
+    /// Ověří, zda daný záznam splňuje aktuálně nastavené filtry.
+    /// </summary>
     private bool MatchesFilters(ScanRecord r)
     {
         if (!string.IsNullOrEmpty(currentIpFilter) && !r.Ip.Contains(currentIpFilter, StringComparison.OrdinalIgnoreCase)) return false;
@@ -285,6 +330,9 @@ public partial class Form1 : Form
         return true;
     }
 
+    /// <summary>
+    /// Úklid po dokončení běhu skenu.
+    /// </summary>
     private void CleanupRun()
     {
         if (InvokeRequired)
@@ -296,6 +344,9 @@ public partial class Form1 : Form
         scanner = null;
     }
 
+    /// <summary>
+    /// Dodá položku pro virtuální ListView dle indexu.
+    /// </summary>
     private void lvResults_RetrieveVirtualItem(object? sender, RetrieveVirtualItemEventArgs e)
     {
         ScanRecord rec;
@@ -317,6 +368,9 @@ public partial class Form1 : Form
         });
     }
 
+    /// <summary>
+    /// Periodicky zpracuje dávku přijatých výsledků a logů na UI threadu.
+    /// </summary>
     private void UiTimer_Tick(object? sender, EventArgs e)
     {
         if (IsDisposed || !IsHandleCreated) return;
@@ -362,6 +416,9 @@ public partial class Form1 : Form
         }
     }
 
+    /// <summary>
+    /// Setřídí aktuální filtrované výsledky dle zvoleného sloupce a směru.
+    /// </summary>
     private void SortFilteredResults()
     {
         Comparison<ScanRecord> cmp;

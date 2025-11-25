@@ -2,8 +2,17 @@ namespace PortScanner.Utils;
 
 using System.Net;
 
+/// <summary>
+/// Pomocné funkce pro práci s IPv4 adresami a seznamem portů.
+/// </summary>
 public static class IpUtils
 {
+    /// <summary>
+    /// Pokusí se převést textovou IPv4 adresu na 32bitové číslo.
+    /// </summary>
+    /// <param name="text">Textová IPv4 adresa (např. 172.0.0.1).</param>
+    /// <param name="value">Výstupní 32bitová hodnota reprezentující IPv4.</param>
+    /// <returns>True pokud šlo o validní IPv4, jinak false.</returns>
     public static bool TryParseIPv4(string text, out ulong value)
     {
         value = 0;
@@ -19,6 +28,11 @@ public static class IpUtils
         return false;
     }
 
+    /// <summary>
+    /// Vytvoří <see cref="IPAddress"/> ze 32bitové hodnoty.
+    /// </summary>
+    /// <param name="v">32bitová hodnota IPv4.</param>
+    /// <returns>Instanci <see cref="IPAddress"/>.</returns>
     public static IPAddress FromUInt32(uint v)
     {
         var b0 = (byte)((v >> 24) & 0xFF);
@@ -28,6 +42,11 @@ public static class IpUtils
         return new IPAddress(new byte[] { b0, b1, b2, b3 });
     }
 
+    /// <summary>
+    /// Převede textovou IPv4 na 32bitovou hodnotu; nevalidní vrací 0.
+    /// </summary>
+    /// <param name="s">Textová IPv4.</param>
+    /// <returns>32bitová reprezentace nebo 0 pro nevalidní.</returns>
     public static uint IpToUInt32(string s)
     {
         if (IPAddress.TryParse(s, out var ip))
@@ -38,6 +57,11 @@ public static class IpUtils
         return 0;
     }
 
+    /// <summary>
+    /// Rozparsuje text se seznamem portů do kolekce validních čísel portů.
+    /// </summary>
+    /// <param name="text">Seznam portů oddělený čárkou/ středníkem/ mezerou.</param>
+    /// <returns>Enumerable validních portů v rozsahu 1–65535.</returns>
     public static IEnumerable<int> ParsePorts(string text)
     {
         var list = new List<int>();

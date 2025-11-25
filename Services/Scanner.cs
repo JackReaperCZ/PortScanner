@@ -7,10 +7,25 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 
+/// <summary>
+/// Vysoce paralelní LAN skener s producent–konsument architekturou.
+/// Publikuje výsledky přes eventy a podporuje DNS a TCP port scan.
+/// </summary>
 public sealed class Scanner
 {
+    /// <summary>
+    /// Event s každým nalezeným výsledkem skenu.
+    /// </summary>
     public event Action<ScanRecord>? Record;
+
+    /// <summary>
+    /// Event s logovacím řádkem.
+    /// </summary>
     public event Action<string>? Log;
+
+    /// <summary>
+    /// Event po dokončení skenu (po ukončení všech workerů).
+    /// </summary>
     public event Action? Completed;
 
     private BlockingCollection<IPAddress>? queue;
@@ -27,6 +42,15 @@ public sealed class Scanner
     private readonly bool enablePortScan;
     private readonly List<int> ports;
 
+    /// <summary>
+    /// Vytvoří skener s daným rozsahem, paralelismem a volbami.
+    /// </summary>
+    /// <param name="startIp">Počáteční IPv4 adresa.</param>
+    /// <param name="endIp">Koncová IPv4 adresa.</param>
+    /// <param name="workerCount">Počet paralelních workerů.</param>
+    /// <param name="enableDns">Zda provádět DNS lookup.</param>
+    /// <param name="enablePortScan">Zda provádět TCP port scan.</param>
+    /// <param name="ports">Seznam portů pro scan.</param>
     public Scanner(string startIp, string endIp, int workerCount, bool enableDns, bool enablePortScan, IEnumerable<int> ports)
     {
         this.startIp = startIp;
@@ -37,6 +61,9 @@ public sealed class Scanner
         this.ports = ports.ToList();
     }
 
+    /// <summary>
+    /// Spustí sken – inicializuje frontu a spuštění producenta i workerů.
+    /// </summary>
     public void Start()
     {
         if (queue != null) return;
@@ -53,12 +80,18 @@ public sealed class Scanner
         }
     }
 
+    /// <summary>
+    /// Zastaví sken – vyvolá cancel a uzavře frontu.
+    /// </summary>
     public void Stop()
     {
         try { cts?.Cancel(); } catch { }
         try { queue?.CompleteAdding(); } catch { }
     }
 
+    /// <summary>
+    /// Producent: generuje IPv4 adresy z rozsahu a vkládá je do <see cref="BlockingCollection{IPAddress}"/>.
+    /// </summary>
     private async Task ProduceAddresses(CancellationToken token)
     {
         if (!IpUtils.TryParseIPv4(startIp, out var start) || !IpUtils.TryParseIPv4(endIp, out var end))
@@ -84,6 +117,9 @@ public sealed class Scanner
         queue!.CompleteAdding();
     }
 
+    /// <summary>
+    /// Konzument: čte IP z fronty, provádí Ping/DNS/Ports a publikuje výsledky.
+    /// </summary>
     private async Task ConsumeAndScan(int workerId, CancellationToken token)
     {
         foreach (var ip in queue!.GetConsumingEnumerable(token))
@@ -148,6 +184,9 @@ public sealed class Scanner
         }
     }
 
+    /// <summary>
+    /// Testuje dostupnost TCP portu pomocí Connect s timeoutem.
+    /// </summary>
     private static async Task<bool> IsPortOpen(string host, int port, int timeoutMs, CancellationToken token)
     {
         try
