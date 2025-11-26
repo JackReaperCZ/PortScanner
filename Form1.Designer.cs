@@ -26,6 +26,7 @@ partial class Form1
         this.txtPorts = new System.Windows.Forms.TextBox();
         this.btnStart = new System.Windows.Forms.Button();
         this.btnStop = new System.Windows.Forms.Button();
+        this.chkUseMask = new System.Windows.Forms.CheckBox();
         this.btnClearOutput = new System.Windows.Forms.Button();
         this.btnClearLog = new System.Windows.Forms.Button();
         this.btnExportCsv = new System.Windows.Forms.Button();
@@ -119,6 +120,14 @@ partial class Form1
         this.btnStop.Text = "Stop";
         this.btnStop.UseVisualStyleBackColor = true;
         this.btnStop.Click += new System.EventHandler(this.btnStop_Click);
+        this.chkUseMask.AutoSize = true;
+        this.chkUseMask.Location = new System.Drawing.Point(540, 12);
+        this.chkUseMask.Name = "chkUseMask";
+        this.chkUseMask.Size = new System.Drawing.Size(78, 19);
+        this.chkUseMask.TabIndex = 9;
+        this.chkUseMask.Text = "Síť/maska";
+        this.chkUseMask.UseVisualStyleBackColor = true;
+        this.chkUseMask.CheckedChanged += new System.EventHandler(this.chkUseMask_CheckedChanged);
         this.btnClearOutput.Location = new System.Drawing.Point(620, 40);
         this.btnClearOutput.Name = "btnClearOutput";
         this.btnClearOutput.Size = new System.Drawing.Size(80, 23);
@@ -280,6 +289,7 @@ partial class Form1
         this.Controls.Add(this.btnExportCsv);
         this.Controls.Add(this.btnClearLog);
         this.Controls.Add(this.btnClearOutput);
+        this.Controls.Add(this.chkUseMask);
         this.Controls.Add(this.btnStop);
         this.Controls.Add(this.btnStart);
         this.Controls.Add(this.txtPorts);
@@ -332,4 +342,5 @@ partial class Form1
     private System.Windows.Forms.ColumnHeader colRtt;
     private System.Windows.Forms.ColumnHeader colHostname;
     private System.Windows.Forms.RichTextBox rtbLog;
+    private System.Windows.Forms.CheckBox chkUseMask;
 }
