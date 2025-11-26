@@ -23,6 +23,9 @@ public partial class Form1 : Form
     private readonly System.Collections.Concurrent.ConcurrentQueue<string> pendingLogs = new System.Collections.Concurrent.ConcurrentQueue<string>();
     private System.Windows.Forms.Timer? uiTimer;
     private Scanner? scanner;
+    private Action<ScanRecord>? recordHandler;
+    private Action<string>? logHandler;
+    private Action? completedHandler;
     private string currentIpFilter = string.Empty;
     private string currentHostFilter = string.Empty;
     private string currentStatusFilter = "All";
@@ -40,6 +43,7 @@ public partial class Form1 : Form
         uiTimer = new System.Windows.Forms.Timer();
         uiTimer.Interval = 100;
         uiTimer.Tick += UiTimer_Tick;
+        btnStop.Enabled = false;
     }
 
     /// <summary>
@@ -49,12 +53,35 @@ public partial class Form1 : Form
     {
         if (scanner != null)
             return;
-        scanner = new Scanner(txtStartIp.Text.Trim(), txtEndIp.Text.Trim(), (int)numWorkers.Value, chkDns.Checked, chkPortScan.Checked, IpUtils.ParsePorts(txtPorts.Text));
-        scanner.Record += r => pendingResults.Enqueue(r);
-        scanner.Log += line => pendingLogs.Enqueue(line);
-        scanner.Completed += () => CleanupRun();
+        string startText = txtStartIp.Text.Trim();
+        string endText = txtEndIp.Text.Trim();
+        if (chkUseMask.Checked)
+        {
+            var net = IpUtils.IpToUInt32(startText);
+            var mask = IpUtils.IpToUInt32(endText);
+            if (net == 0 || mask == 0)
+            {
+                MessageBox.Show(this, "Neplatná síť nebo maska", "Vstup", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            var network = net & mask;
+            var broadcast = network | ~mask;
+            startText = IpUtils.FromUInt32(network).ToString();
+            endText = IpUtils.FromUInt32(broadcast).ToString();
+        }
+        ClearResults();
+        DrainQueues();
+        scanner = new Scanner(startText, endText, (int)numWorkers.Value, chkDns.Checked, chkPortScan.Checked, IpUtils.ParsePorts(txtPorts.Text));
+        recordHandler = r => pendingResults.Enqueue(r);
+        logHandler = line => pendingLogs.Enqueue(line);
+        completedHandler = () => CleanupRun();
+        scanner.Record += recordHandler;
+        scanner.Log += logHandler;
+        scanner.Completed += completedHandler;
         scanner.Start();
         uiTimer!.Start();
+        btnStart.Enabled = false;
+        btnStop.Enabled = true;
     }
 
     /// <summary>
@@ -62,7 +89,15 @@ public partial class Form1 : Form
     /// </summary>
     private void btnStop_Click(object? sender, EventArgs e)
     {
-        scanner?.Stop();
+        if (scanner == null) return;
+        try { scanner.Record -= recordHandler; } catch { }
+        try { scanner.Log -= logHandler; } catch { }
+        try { scanner.Completed -= completedHandler; } catch { }
+        scanner.Stop();
+        scanner = null;
+        uiTimer!.Stop();
+        btnStart.Enabled = true;
+        btnStop.Enabled = false;
     }
 
     /// <summary>
@@ -70,16 +105,7 @@ public partial class Form1 : Form
     /// </summary>
     private void btnClearOutput_Click(object? sender, EventArgs e)
     {
-        lock (listViewLock)
-        {
-            lvResults.VirtualListSize = 0;
-            lvResults.Invalidate();
-        }
-        lock (allResults)
-        {
-            allResults.Clear();
-            filteredResults.Clear();
-        }
+        ClearResults();
     }
 
     /// <summary>
@@ -342,6 +368,8 @@ public partial class Form1 : Form
         }
         uiTimer!.Stop();
         scanner = null;
+        btnStart.Enabled = true;
+        btnStop.Enabled = false;
     }
 
     /// <summary>
@@ -414,6 +442,33 @@ public partial class Form1 : Form
                 rtbLog.ScrollToCaret();
             }
         }
+    }
+
+    private void ClearResults()
+    {
+        lock (listViewLock)
+        {
+            lvResults.VirtualListSize = 0;
+            lvResults.Invalidate();
+        }
+        lock (allResults)
+        {
+            allResults.Clear();
+            filteredResults.Clear();
+        }
+    }
+
+    private void DrainQueues()
+    {
+        while (pendingResults.TryDequeue(out var _)) { }
+        while (pendingLogs.TryDequeue(out var _)) { }
+    }
+
+    private void chkUseMask_CheckedChanged(object? sender, EventArgs e)
+    {
+        var useMask = chkUseMask.Checked;
+        lblStart.Text = useMask ? "Síť IP" : "Start IP";
+        lblEnd.Text = useMask ? "Maska" : "End IP";
     }
 
     /// <summary>
