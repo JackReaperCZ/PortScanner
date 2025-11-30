@@ -5,7 +5,7 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
-using System.Text.Json;
+using Newtonsoft.Json;
 using System.Xml.Linq;
 using PortScanner.Models;
 using PortScanner.Services;
@@ -53,12 +53,12 @@ public partial class Form1 : Form
     {
         if (scanner != null)
             return;
-        string startText = txtStartIp.Text.Trim();
-        string endText = txtEndIp.Text.Trim();
-        if (chkUseMask.Checked)
+        string startText;
+        string endText;
+        if (tabInput.SelectedTab == tabSubnet)
         {
-            var net = IpUtils.IpToUInt32(startText);
-            var mask = IpUtils.IpToUInt32(endText);
+            var net = IpUtils.IpToUInt32(txtNetIp.Text.Trim());
+            var mask = IpUtils.IpToUInt32(txtMask.Text.Trim());
             if (net == 0 || mask == 0)
             {
                 MessageBox.Show(this, "Neplatná síť nebo maska", "Vstup", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -68,6 +68,11 @@ public partial class Form1 : Form
             var broadcast = network | ~mask;
             startText = IpUtils.FromUInt32(network).ToString();
             endText = IpUtils.FromUInt32(broadcast).ToString();
+        }
+        else
+        {
+            startText = txtStartIpRange.Text.Trim();
+            endText = txtEndIpRange.Text.Trim();
         }
         ClearResults();
         DrainQueues();
@@ -138,7 +143,7 @@ public partial class Form1 : Form
                 var status = rec.Status;
                 var rtt = rec.Rtt.HasValue ? rec.Rtt.Value.ToString() : string.Empty;
                 var host = rec.Hostname ?? string.Empty;
-                sb.AppendLine(string.Join(',', new[] { EscapeCsv(ip), EscapeCsv(status), EscapeCsv(rtt), EscapeCsv(host) }));
+                sb.AppendLine(string.Join(",", new[] { EscapeCsv(ip), EscapeCsv(status), EscapeCsv(rtt), EscapeCsv(host) }));
             }
             File.WriteAllText(sfd.FileName, sb.ToString(), Encoding.UTF8);
         }
@@ -169,7 +174,7 @@ public partial class Form1 : Form
                     hostname = rec.Hostname
                 });
             }
-            var json = JsonSerializer.Serialize(results, new JsonSerializerOptions { WriteIndented = true });
+            var json = JsonConvert.SerializeObject(results, Formatting.Indented);
             File.WriteAllText(sfd.FileName, json, Encoding.UTF8);
         }
     }
@@ -236,8 +241,8 @@ public partial class Form1 : Form
 
     private static string EscapeCsv(string s)
     {
-        if (s.Contains('"') || s.Contains(',') || s.Contains('\n'))
-            return '"' + s.Replace("\"", "\"\"") + '"';
+        if (s.Contains("\"") || s.Contains(",") || s.Contains("\n"))
+            return "\"" + s.Replace("\"", "\"\"") + "\"";
         return s;
     }
 
@@ -348,8 +353,8 @@ public partial class Form1 : Form
     /// </summary>
     private bool MatchesFilters(ScanRecord r)
     {
-        if (!string.IsNullOrEmpty(currentIpFilter) && !r.Ip.Contains(currentIpFilter, StringComparison.OrdinalIgnoreCase)) return false;
-        if (!string.IsNullOrEmpty(currentHostFilter) && (r.Hostname == null || !r.Hostname.Contains(currentHostFilter, StringComparison.OrdinalIgnoreCase))) return false;
+        if (!string.IsNullOrEmpty(currentIpFilter) && r.Ip.IndexOf(currentIpFilter, StringComparison.OrdinalIgnoreCase) < 0) return false;
+        if (!string.IsNullOrEmpty(currentHostFilter) && (r.Hostname == null || r.Hostname.IndexOf(currentHostFilter, StringComparison.OrdinalIgnoreCase) < 0)) return false;
         if (currentStatusFilter != "All" && !string.Equals(r.Status, currentStatusFilter, StringComparison.OrdinalIgnoreCase)) return false;
         if (currentRttMin.HasValue && (!r.Rtt.HasValue || r.Rtt.Value < currentRttMin.Value)) return false;
         if (currentRttMax.HasValue && (!r.Rtt.HasValue || r.Rtt.Value > currentRttMax.Value)) return false;
@@ -382,7 +387,7 @@ public partial class Form1 : Form
         {
             if (e.ItemIndex < 0 || e.ItemIndex >= filteredResults.Count)
             {
-                e.Item = new ListViewItem(new[] { string.Empty, string.Empty, string.Empty, string.Empty });
+                e.Item = new ListViewItem(new[] { string.Empty, string.Empty, string.Empty, string.Empty, string.Empty });
                 return;
             }
             rec = filteredResults[e.ItemIndex];
@@ -392,7 +397,8 @@ public partial class Form1 : Form
             rec.Ip,
             rec.Status,
             rec.Rtt.HasValue ? rec.Rtt.Value.ToString() : string.Empty,
-            rec.Hostname ?? string.Empty
+            rec.Hostname ?? string.Empty,
+            rec.Mac ?? string.Empty
         });
     }
 
@@ -464,12 +470,7 @@ public partial class Form1 : Form
         while (pendingLogs.TryDequeue(out var _)) { }
     }
 
-    private void chkUseMask_CheckedChanged(object? sender, EventArgs e)
-    {
-        var useMask = chkUseMask.Checked;
-        lblStart.Text = useMask ? "Síť IP" : "Start IP";
-        lblEnd.Text = useMask ? "Maska" : "End IP";
-    }
+    
 
     /// <summary>
     /// Setřídí aktuální filtrované výsledky dle zvoleného sloupce a směru.
@@ -489,9 +490,13 @@ public partial class Form1 : Form
         {
             cmp = (a, b) => string.Compare(a.Status, b.Status, StringComparison.OrdinalIgnoreCase);
         }
-        else
+        else if (currentSortColumn == 3)
         {
             cmp = (a, b) => string.Compare(a.Hostname ?? string.Empty, b.Hostname ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+        }
+        else
+        {
+            cmp = (a, b) => string.Compare(a.Mac ?? string.Empty, b.Mac ?? string.Empty, StringComparison.OrdinalIgnoreCase);
         }
         lock (allResults)
         {
