@@ -25,6 +25,8 @@ public sealed class ScanRecord
     /// </summary>
     public string? Hostname { get; }
 
+    public string? Mac { get; }
+
     /// <summary>
     /// Vytvoří novou instanci výsledku skenu.
     /// </summary>
@@ -32,6 +34,6 @@ public sealed class ScanRecord
     /// <param name="status">Textový stav výsledku.</param>
     /// <param name="rtt">Latence v ms (volitelné).</param>
     /// <param name="hostname">Hostname nebo doplňkové info (volitelné).</param>
-    public ScanRecord(string ip, string status, int? rtt, string? hostname)
-    { Ip = ip; Status = status; Rtt = rtt; Hostname = hostname; }
+    public ScanRecord(string ip, string status, int? rtt, string? hostname, string? mac = null)
+    { Ip = ip; Status = status; Rtt = rtt; Hostname = hostname; Mac = mac; }
 }

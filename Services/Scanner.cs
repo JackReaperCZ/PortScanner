@@ -6,6 +6,8 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
+using System.Diagnostics;
 
 /// <summary>
 /// Vysoce paralelní LAN skener s producent–konsument architekturou.
@@ -140,14 +142,14 @@ public sealed class Scanner
                 else if (reply.Status == IPStatus.TimedOut) status = "Timeout";
                 else status = "Offline";
                 string? hostname = null;
-                if (enableDns && status == "Online")
+                string? mac = null;
+                if (status == "Online" && enableDns)
                 {
-                    try
-                    {
-                        var entry = await Dns.GetHostEntryAsync(ip);
-                        hostname = entry.HostName;
-                    }
-                    catch { hostname = null; }
+                    hostname = await ResolveHostnameAsync(ip, token);
+                }
+                if (status == "Online")
+                {
+                    mac = TryGetMac(ip);
                 }
                 if (enablePortScan)
                 {
@@ -158,7 +160,7 @@ public sealed class Scanner
                             openPorts.Add(p);
                     }
                     if (openPorts.Count > 0)
-                        hostname = string.IsNullOrEmpty(hostname) ? $"Ports: {string.Join(',', openPorts)}" : $"{hostname} | Ports: {string.Join(',', openPorts)}";
+                        hostname = string.IsNullOrEmpty(hostname) ? "Ports: " + string.Join(",", openPorts) : hostname + " | Ports: " + string.Join(",", openPorts);
                 }
                 if (largeRangeMode && status == "Offline")
                 {
@@ -166,7 +168,7 @@ public sealed class Scanner
                 }
                 else
                 {
-                    Record?.Invoke(new ScanRecord(ip.ToString(), status, rtt, hostname));
+                    Record?.Invoke(new ScanRecord(ip.ToString(), status, rtt, hostname, mac));
                 }
                 if (rtt.HasValue) Log?.Invoke($"[{DateTime.Now:HH:mm:ss}] W{workerId}: Ping OK ({rtt.Value} ms)\n");
                 else Log?.Invoke($"[{DateTime.Now:HH:mm:ss}] W{workerId}: {status}\n");
@@ -201,4 +203,77 @@ public sealed class Scanner
         catch { }
         return false;
     }
+
+    private static async Task<string?> ResolveHostnameAsync(IPAddress ip, CancellationToken token)
+    {
+        try
+        {
+            var entry = await Dns.GetHostEntryAsync(ip);
+            if (!string.IsNullOrWhiteSpace(entry?.HostName))
+                return entry!.HostName;
+        }
+        catch { }
+        return await ResolveNetbiosNameAsync(ip, token);
+    }
+
+    private static async Task<string?> ResolveNetbiosNameAsync(IPAddress ip, CancellationToken token)
+    {
+        try
+        {
+            if (ip.AddressFamily != AddressFamily.InterNetwork) return null;
+            using var p = new Process();
+            p.StartInfo.FileName = "nbtstat";
+            p.StartInfo.Arguments = $"-A {ip}";
+            p.StartInfo.UseShellExecute = false;
+            p.StartInfo.RedirectStandardOutput = true;
+            p.StartInfo.RedirectStandardError = true;
+            p.StartInfo.CreateNoWindow = true;
+            p.Start();
+            var linked = CancellationTokenSource.CreateLinkedTokenSource(token);
+            var timeoutTask = Task.Delay(1500, linked.Token);
+            var readTask = p.StandardOutput.ReadToEndAsync();
+            var completed = await Task.WhenAny(readTask, timeoutTask);
+            if (completed != readTask)
+            {
+                try { if (!p.HasExited) p.Kill(); } catch { }
+                return null;
+            }
+            var output = readTask.Result;
+            foreach (var raw in output.Split('\n'))
+            {
+                var line = raw.Trim();
+                if (line.Length == 0) continue;
+                if (line.IndexOf("<00>", StringComparison.Ordinal) >= 0 && line.IndexOf("GROUP", StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    var parts = line.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length > 0)
+                    {
+                        var name = parts[0].Trim();
+                        if (!string.IsNullOrWhiteSpace(name)) return name;
+                    }
+                }
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    private static string? TryGetMac(IPAddress ip)
+    {
+        try
+        {
+            if (ip.AddressFamily != AddressFamily.InterNetwork) return null;
+            var addrBytes = ip.GetAddressBytes();
+            int destIp = BitConverter.ToInt32(addrBytes, 0);
+            var macBytes = new byte[6];
+            int len = macBytes.Length;
+            int result = SendARP(destIp, 0, macBytes, ref len);
+            if (result != 0 || len <= 0) return null;
+            return string.Join(":", macBytes.Take(len).Select(b => b.ToString("X2")));
+        }
+        catch { return null; }
+    }
+
+    [DllImport("iphlpapi.dll", ExactSpelling = true)]
+    private static extern int SendARP(int destIp, int srcIp, byte[] pMacAddr, ref int phyAddrLen);
 }
