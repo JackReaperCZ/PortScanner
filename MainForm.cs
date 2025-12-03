@@ -10,11 +10,12 @@ using System.Xml.Linq;
 using PortScanner.Models;
 using PortScanner.Services;
 using PortScanner.Utils;
+using System.Windows.Forms;
 
 /// <summary>
 /// Hlavní formulář aplikace: obsahuje GUI, filtry, exporty a bezpečné batchování výsledků.
 /// </summary>
-public partial class Form1 : Form
+public partial class MainForm : Form
 {
     private readonly object listViewLock = new object();
     private readonly List<ScanRecord> allResults = new List<ScanRecord>();
@@ -37,13 +38,14 @@ public partial class Form1 : Form
     /// <summary>
     /// Inicializuje komponenty a časovač pro dávkové UI aktualizace.
     /// </summary>
-    public Form1()
+    public MainForm()
     {
         InitializeComponent();
+        MinimumSize = Size;
         uiTimer = new System.Windows.Forms.Timer();
         uiTimer.Interval = 100;
         uiTimer.Tick += UiTimer_Tick;
-        btnStop.Enabled = false;
+        tsmiStop.Enabled = false;
     }
 
     /// <summary>
@@ -76,7 +78,7 @@ public partial class Form1 : Form
         }
         ClearResults();
         DrainQueues();
-        scanner = new Scanner(startText, endText, (int)numWorkers.Value, chkDns.Checked, chkPortScan.Checked, IpUtils.ParsePorts(txtPorts.Text));
+        scanner = new Scanner(startText, endText, (int)numWorkers.Value, chkDns.Checked);
         recordHandler = r => pendingResults.Enqueue(r);
         logHandler = line => pendingLogs.Enqueue(line);
         completedHandler = () => CleanupRun();
@@ -85,8 +87,8 @@ public partial class Form1 : Form
         scanner.Completed += completedHandler;
         scanner.Start();
         uiTimer!.Start();
-        btnStart.Enabled = false;
-        btnStop.Enabled = true;
+        tsmiStart.Enabled = false;
+        tsmiStop.Enabled = true;
     }
 
     /// <summary>
@@ -101,8 +103,8 @@ public partial class Form1 : Form
         scanner.Stop();
         scanner = null;
         uiTimer!.Stop();
-        btnStart.Enabled = true;
-        btnStop.Enabled = false;
+        tsmiStart.Enabled = true;
+        tsmiStop.Enabled = false;
     }
 
     /// <summary>
@@ -245,11 +247,7 @@ public partial class Form1 : Form
             return "\"" + s.Replace("\"", "\"\"") + "\"";
         return s;
     }
-
     
-
-    
-
     private static async Task<bool> IsPortOpen(string host, int port, int timeoutMs, CancellationToken token)
     {
         try
@@ -373,8 +371,8 @@ public partial class Form1 : Form
         }
         uiTimer!.Stop();
         scanner = null;
-        btnStart.Enabled = true;
-        btnStop.Enabled = false;
+        tsmiStart.Enabled = true;
+        tsmiStop.Enabled = false;
     }
 
     /// <summary>
@@ -402,6 +400,22 @@ public partial class Form1 : Form
         });
     }
 
+    private void lvResults_DoubleClick(object? sender, EventArgs e)
+    {
+        if (lvResults.SelectedIndices.Count == 0) return;
+        var idx = lvResults.SelectedIndices[0];
+        ScanRecord rec;
+        lock (allResults)
+        {
+            if (idx < 0 || idx >= filteredResults.Count) return;
+            rec = filteredResults[idx];
+        }
+        using var details = new HostDetailsForm(rec.Ip, rec.Hostname, rec.Mac);
+        details.ShowDialog(this);
+    }
+
+    
+    
     /// <summary>
     /// Periodicky zpracuje dávku přijatých výsledků a logů na UI threadu.
     /// </summary>
@@ -506,6 +520,4 @@ public partial class Form1 : Form
                 filteredResults.Sort(cmp);
         }
     }
-
-    
 }

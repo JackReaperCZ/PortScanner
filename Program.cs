@@ -25,6 +25,6 @@ static class Program
             }
             catch { }
         };
-        Application.Run(new Form1());
+        Application.Run(new MainForm());
     }    
 }

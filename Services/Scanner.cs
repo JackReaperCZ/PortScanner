@@ -41,8 +41,6 @@ public sealed class Scanner
     private readonly string endIp;
     private readonly int workerCount;
     private readonly bool enableDns;
-    private readonly bool enablePortScan;
-    private readonly List<int> ports;
 
     /// <summary>
     /// Vytvoří skener s daným rozsahem, paralelismem a volbami.
@@ -53,14 +51,12 @@ public sealed class Scanner
     /// <param name="enableDns">Zda provádět DNS lookup.</param>
     /// <param name="enablePortScan">Zda provádět TCP port scan.</param>
     /// <param name="ports">Seznam portů pro scan.</param>
-    public Scanner(string startIp, string endIp, int workerCount, bool enableDns, bool enablePortScan, IEnumerable<int> ports)
+    public Scanner(string startIp, string endIp, int workerCount, bool enableDns)
     {
         this.startIp = startIp;
         this.endIp = endIp;
         this.workerCount = workerCount;
         this.enableDns = enableDns;
-        this.enablePortScan = enablePortScan;
-        this.ports = ports.ToList();
     }
 
     /// <summary>
@@ -151,17 +147,7 @@ public sealed class Scanner
                 {
                     mac = TryGetMac(ip);
                 }
-                if (enablePortScan)
-                {
-                    var openPorts = new List<int>();
-                    foreach (var p in ports)
-                    {
-                        if (await IsPortOpen(ip.ToString(), p, 500, token))
-                            openPorts.Add(p);
-                    }
-                    if (openPorts.Count > 0)
-                        hostname = string.IsNullOrEmpty(hostname) ? "Ports: " + string.Join(",", openPorts) : hostname + " | Ports: " + string.Join(",", openPorts);
-                }
+                
                 if (largeRangeMode && status == "Offline")
                 {
                     Interlocked.Increment(ref offlineCounter);
@@ -189,20 +175,7 @@ public sealed class Scanner
     /// <summary>
     /// Testuje dostupnost TCP portu pomocí Connect s timeoutem.
     /// </summary>
-    private static async Task<bool> IsPortOpen(string host, int port, int timeoutMs, CancellationToken token)
-    {
-        try
-        {
-            using var client = new TcpClient();
-            var connectTask = client.ConnectAsync(host, port);
-            var delay = Task.Delay(timeoutMs, token);
-            var completed = await Task.WhenAny(connectTask, delay);
-            if (completed == connectTask && client.Connected)
-                return true;
-        }
-        catch { }
-        return false;
-    }
+    
 
     private static async Task<string?> ResolveHostnameAsync(IPAddress ip, CancellationToken token)
     {
