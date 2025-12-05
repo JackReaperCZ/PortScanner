@@ -54,7 +54,8 @@ public partial class HostDetailsForm : Form
         int start = (int)numPortStart.Value;
         int end = (int)numPortEnd.Value;
         var tasks = new List<Task>();
-        var sem = new SemaphoreSlim(50);
+        const int MaxWorkers = 50;
+        var sem = new SemaphoreSlim(MaxWorkers);
         for (int port = start; port <= end; port++)
         {
             if (chkHttp.Checked)
@@ -179,7 +180,6 @@ public partial class HostDetailsForm : Form
     {
         if (isClosing || IsDisposed || !IsHandleCreated) return;
         if (rtbLog == null || rtbLog.IsDisposed) return;
-        var added = false;
         int processed = 0;
         while (processed < 2000 && pendingResults.TryDequeue(out var r))
         {
@@ -189,7 +189,6 @@ public partial class HostDetailsForm : Form
             if (filter == "All" || string.Equals(r.Status, filter, StringComparison.OrdinalIgnoreCase))
             {
                 lvServices.Items.Add(new ListViewItem(new[] { r.Service, r.Status, r.Info ?? string.Empty }));
-                added = true;
             }
         }
         if (pendingLogs.Count > 0)
