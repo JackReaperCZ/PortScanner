@@ -134,7 +134,7 @@ public partial class HostDetailsForm : Form
             ServicePointManager.ServerCertificateValidationCallback = (m, c, ch, e) => true;
             var req = (HttpWebRequest)WebRequest.Create(uri);
             req.Method = "HEAD";
-            req.Timeout = 2000;
+            req.Timeout = 3000;
             using var resp = (HttpWebResponse)await Task.Run(() => req.GetResponse(), token);
             status = ((int)resp.StatusCode >= 200 && (int)resp.StatusCode < 400) ? "Online" : "Error";
             info = resp.Headers["Server"];
@@ -151,13 +151,13 @@ public partial class HostDetailsForm : Form
         {
             using var client = new TcpClient();
             var connectTask = client.ConnectAsync(ip, port);
-            var delay = Task.Delay(2000, token);
+            var delay = Task.Delay(3000, token);
             var completed = await Task.WhenAny(connectTask, delay);
             if (completed == connectTask && client.Connected)
             {
                 status = "Online";
                 using var stream = client.GetStream();
-                stream.ReadTimeout = 2000;
+                stream.ReadTimeout = 3000;
                 var buffer = new byte[256];
                 int read = await stream.ReadAsync(buffer, 0, buffer.Length, token);
                 if (read > 0) info = System.Text.Encoding.ASCII.GetString(buffer, 0, read).Trim();
