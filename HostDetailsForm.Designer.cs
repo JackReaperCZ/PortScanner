@@ -202,6 +202,7 @@ partial class HostDetailsForm
         this.lvServices.FullRowSelect = true;
         this.lvServices.GridLines = true;
         this.lvServices.HideSelection = false;
+        this.lvServices.MultiSelect = false;
         this.lvServices.Location = new System.Drawing.Point(10, 125);
         this.lvServices.Name = "lvServices";
         this.lvServices.Size = new System.Drawing.Size(549, 211);
