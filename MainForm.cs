@@ -75,6 +75,21 @@ public partial class MainForm : Form
         {
             startText = txtStartIpRange.Text.Trim();
             endText = txtEndIpRange.Text.Trim();
+            if (!IpUtils.TryParseIPv4(startText, out var startVal) || !IpUtils.TryParseIPv4(endText, out var endVal))
+            {
+                MessageBox.Show(this, "Neplatný formát IP adresy (rozsah)", "Vstup", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            if (startVal > endVal)
+            {
+                MessageBox.Show(this, "Počáteční IP je větší než koncová", "Vstup", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+        }
+        if (numWorkers.Value <= 0)
+        {
+            MessageBox.Show(this, "Počet workerů musí být alespoň 1", "Vstup", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
         }
         ClearResults();
         DrainQueues();

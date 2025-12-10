@@ -47,6 +47,26 @@ public partial class HostDetailsForm : Form
     /// </summary>
     private async void btnStart_Click(object? sender, EventArgs e)
     {
+        if (string.IsNullOrWhiteSpace(ip))
+        {
+            MessageBox.Show(this, "IP adresa není vyplněna", "Vstup", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        if (!(chkHttp.Checked || chkHttps.Checked || chkFtp.Checked))
+        {
+            MessageBox.Show(this, "Vyberte alespoň jednu službu (HTTP/HTTPS/FTP)", "Vstup", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        if (numPortStart.Value <= 0 || numPortEnd.Value <= 0 || numPortStart.Value > 65535 || numPortEnd.Value > 65535)
+        {
+            MessageBox.Show(this, "Porty musí být v rozsahu 1–65535", "Vstup", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        if (numPortStart.Value > numPortEnd.Value)
+        {
+            MessageBox.Show(this, "Počáteční port je větší než koncový", "Vstup", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
         btnStart.Enabled = false; btnStop.Enabled = true;
         cts = new CancellationTokenSource();
         all.Clear();

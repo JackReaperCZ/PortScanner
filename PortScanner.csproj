@@ -16,6 +16,8 @@
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Fody" Version="6.8.1" PrivateAssets="all" />
+    <PackageReference Include="Costura.Fody" Version="5.7.0" />
   </ItemGroup>
 
 </Project>
