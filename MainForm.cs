@@ -36,7 +36,7 @@ public partial class MainForm : Form
     private SortOrder currentSortOrder = SortOrder.None;
 
     /// <summary>
-    /// Inicializuje komponenty a časovač pro dávkové UI aktualizace.
+    /// Inicializuje komponenty, nastaví minimální velikost okna a časovač pro dávkové UI aktualizace.
     /// </summary>
     public MainForm()
     {
@@ -432,7 +432,7 @@ public partial class MainForm : Form
     
     
     /// <summary>
-    /// Periodicky zpracuje dávku přijatých výsledků a logů na UI threadu.
+    /// Periodicky zpracuje dávku přijatých výsledků a logů na UI threadu (virtual list + konzole).
     /// </summary>
     private void UiTimer_Tick(object? sender, EventArgs e)
     {

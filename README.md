@@ -13,12 +13,13 @@
   - Uživatel chce skenovat velké rozsahy IPv4 adres bez zamrzání UI.
   - Během skenu chce vidět průběžné výsledky a log.
   - Chce filtrovat výsledky, řadit je a exportovat do CSV/JSON/XML.
-  - Chce konfigurovat počet workerů, DNS lookup a port scan.
+- Chce konfigurovat počet workerů, DNS lookup.
+- Chce v detailu hosta skenovat služby (HTTP/HTTPS/FTP) v zadaném rozsahu portů a vidět průběžný log.
 - Functional requirements:
   - Zadání `Start IP` a `End IP` v GUI.
   - Nastavení `Workery`.
   - Producent–konsument architektura s `BlockingCollection<IPAddress>`.
-  - `Ping`, volitelný `DNS lookup`, volitelný TCP port scan.
+- `Ping`, volitelný `DNS lookup`.
   - Tabulka s průběžnými výsledky, numerické řazení IP a RTT.
   - Živý log s časem a ID workeru.
   - Export do CSV/JSON/XML s aplikovanými filtry, blokace exportu při prázdné tabulce.
@@ -33,10 +34,11 @@
 ## Architektura
 
 - Složky:
-  - `Models/ScanRecord.cs` – datový model výsledku.
-  - `Services/Scanner.cs` – producent–konsument skener, eventy `Record`, `Log`, `Completed`.
-  - `Utils/IpUtils.cs` – pomocné IP utility: `TryParseIPv4`, `FromUInt32`, `IpToUInt32`, `ParsePorts`.
-  - `Form1.cs`, `Form1.Designer.cs` – UI, filtr, řazení, export, virtual list.
+- `Models/ScanRecord.cs` – datový model výsledku.
+- `Services/Scanner.cs` – producent–konsument skener, eventy `Record`, `Log`, `Completed`.
+- `Utils/IpUtils.cs` – pomocné IP utility: `TryParseIPv4`, `FromUInt32`, `IpToUInt32`, `ParsePorts`.
+- `MainForm.cs`, `MainForm.Designer.cs` – hlavní UI, filtry, řazení, export, virtual list, konzole.
+- `HostDetailsForm.cs`, `HostDetailsForm.Designer.cs` – detail hosta, skenování služeb v rozsahu portů, filtr stavů a konzole.
 - Vzory:
   - Producer–Consumer: `BlockingCollection` + `Task.Run`.
   - Observer: eventy `Record`, `Log`, `Completed` v `Scanner`.
@@ -51,9 +53,10 @@
 
 - Activity flow:
   1. Start → Validace IP → Nastavení workerů → Spuštění Scanner → Generování IP → Konzumenti z fronty.
-  2. Pro IP: Ping → (DNS) → (Port scan) → Emitovat `Record` + `Log`.
-  3. Form batchuje eventy (Timer) → aktualizuje `filteredResults` → invaliduje `VirtualListSize`.
+  2. Pro IP: Ping → (DNS) → Emitovat `Record` + `Log`.
+  3. Hlavní formulář batchuje eventy (Timer) → aktualizuje `filteredResults` → invaliduje `VirtualListSize`.
   4. Stop → `CancellationTokenSource.Cancel()` → `Completed` → UI Timer stop.
+  5. Detail hosta: po dvojkliku na záznam se otevře `HostDetailsForm`, kde lze skenovat služby v rozsahu portů; průběžné výsledky se zapisují do tabulky a logu.
 
 ## Rozhraní, protokoly a závislosti
 
@@ -62,44 +65,49 @@
   - DNS (`System.Net.Dns.GetHostEntryAsync`).
   - TCP connect (`System.Net.Sockets.TcpClient`).
 - Závislosti:
-  - .NET 9, Windows Forms.
+  - .NET Framework 4.8, Windows Forms.
   - Testy: NUnit, NUnit3TestAdapter, Microsoft.NET.Test.Sdk.
+  - Distribuce: Fody + Costura.Fody (vložené závislosti do EXE).
 - Nefunkční požadavky:
   - Stabilita UI, nízká paměťová náročnost (virtual list, lazy generation, bounded queue).
   - Paralelismus řízený `SemaphoreSlim`.
 
 ## Konfigurace programu
 
-- GUI volby:
-  - `Start IP`, `End IP` – rozsah IPv4.
-  - `Workery` – počet souběžných konzumentů.
+- Hlavní formulář:
+  - `Start IP`, `End IP` – rozsah IPv4 (vstup validován; `start ≤ end`).
+  - `Workery` – počet souběžných konzumentů (≥ 1).
   - `DNS lookup` – zapnout/vypnout.
-  - `Scan portů` – seznam portů (`80,443,22`).
   - Filtry: `Stav`, `IP filtr`, `Hostname filtr`, `RTT min/max`.
+- Detail hosta:
+  - `HTTP`, `HTTPS`, `FTP` – volba služeb.
+  - `Porty` – rozsah `start–end` (1–65535; `start ≤ end`).
+  - Filtr stavů: `All`, `Online`, `Offline`, `Error`.
+  - Konzole s průběžnými logy workerů.
 
 ## Instalace a spuštění
 
-- Požadavky: `dotnet 9.0.101`, Windows.
+- Požadavky: .NET Framework 4.8, Windows.
 - Build: `dotnet build` v kořeni projektu.
-- Spuštění: `dotnet run` nebo z Visual Studio.
-- Testy: `dotnet test tests\PortScanner.Tests\PortScanner.Tests.csproj`.
+- Spuštění: `bin\Release\net48\PortScanner.exe`.
+- Testy: `dotnet test`.
 
 ## Chybové stavy a řešení
 
 - Neplatný rozsah IP: zobrazí se log „Neplatný rozsah“, sken se neprovede.
 - Timeout ping: stav `Timeout`, bez RTT.
 - DNS výjimky: zachyceny, hostname prázdný.
-- Port scan connect timeout: port je považován za zavřený.
+- Detail hosta – timeout HTTP/FTP: stav `Timeout`, případně `Offline`.
 - Export při prázdné tabulce: blokováno, informativní message box.
 - UI interakce během skenu: batchování přes Timer, global exception handler (`Program.cs`) zachytává UI chyby.
 
 ## Ověření, testování a validace
 
-- Jednotkové testy (`tests/PortScanner.Tests`):
-  - `TryParseIPv4` (valid/invalid).
-  - `IpToUInt32` + `FromUInt32` round‑trip.
-  - `ParsePorts` s mixem hodnot.
-- Výsledek posledního běhu: 4/4 úspěšných.
+- Jednotkové testy (`Tests/PortScanner.Tests`):
+  - `TryParseIPv4`: valid, invalid, nula a broadcast, odmítnutí IPv6.
+  - `IpToUInt32` + `FromUInt32`: round‑trip a hraniční hodnoty.
+  - `ParsePorts`: filtr platného rozsahu, zachování duplicit.
+- Výsledek posledního běhu: všechny testy úspěšné.
 - Validace požadavků: aplikace splňuje funkční požadavky a nefunkční požadavky na stabilitu UI.
 
 ## Síť
@@ -142,9 +150,11 @@
 
 ## Odkazy na zdrojový kód
 
-- Spuštění aplikace: `Program.cs:14`.
-- GUI filtry a export: `Form1.Designer.cs` a `Form1.cs:41–56, 77–149`.
-- Virtual List a batch UI: `Form1.cs:316–380`.
+- Spuštění aplikace: `Program.cs:28`.
+- Hlavní GUI – filtry a export: `MainForm.Designer.cs` a `MainForm.cs:41–92, 112–211`.
+- Virtual List a batch UI: `MainForm.cs:333–468`.
+- Dvojklik na záznam → detail hosta: `MainForm.cs:406–418`.
+- Detail hosta – průběžné výsledky a log: `HostDetailsForm.cs:94–121, 155–175`.
 - Skenovací služba: `Services/Scanner.cs`.
 - IP utility: `Utils/IpUtils.cs`.
 
